@@ -8,4 +8,5 @@
   :db/id -1
   :itonami.blueprint/status :public-oss
   :itonami.blueprint/id "cloud-itonami-isco-3113"
-  :itonami.blueprint/license "AGPL-3.0-or-later"}]
+  :itonami.blueprint/license "AGPL-3.0-or-later"
+  :itonami.blueprint/maturity :implemented}]
