@@ -15,8 +15,14 @@
      :confidence 0.0-1.0
      :rationale str}
   LLM parse failures always yield `:confidence 0.0` (never fabricate
-  confidence), which forces the governor to escalate/hold."
-  (:require #?(:clj  [clojure.edn :as edn]
+  confidence), which forces the governor to escalate/hold. So does a request
+  that names no operation, or names one this occupation never declared:
+  measured 2026-09-10 on `origin/main`, a request with no `:op` threw a
+  NullPointerException out of the advisor before the governor ever saw it, and
+  an undeclared `:op` was proposed at confidence 0.95 — the advisor was most
+  certain about exactly the operations it understood least."
+  (:require [eleng.operation :as operation]
+            #?(:clj  [clojure.edn :as edn]
                :cljs [cljs.reader :as edn])))
 
 (defprotocol Advisor
@@ -25,13 +31,27 @@
 (defn- infer
   "Deterministic mock inference: reads the request's declared op/stake
   straight through (a stand-in for what an LLM would extract from free
-  text), with a stake-derived confidence."
+  text), with a stake-derived confidence.
+
+  An operation this occupation has not declared — including a missing one —
+  is proposed at confidence 0.0 rather than crashing or being read straight
+  through. The governor still refuses it outright (`:undeclared-operation` is
+  a HARD violation); the 0.0 is so that the proposal is never the most
+  confident thing in the ledger on its way there."
   [_store {:keys [op stake] :as request}]
-  {:op op
-   :effect :propose
-   :stake (or stake :low)
-   :confidence (case (or stake :low) :high 0.7 :medium 0.85 :low 0.95)
-   :rationale (str "proposed " (name op) " for project " (:project-id request))})
+  (let [known? (operation/declared? op)
+        stake  (or stake :low)]
+    {:op op
+     :effect :propose
+     :stake stake
+     :confidence (if known?
+                   (case stake :high 0.7 :medium 0.85 :low 0.95 0.0)
+                   0.0)
+     :rationale (if known?
+                  (str "proposed " (clojure.core/name op)
+                       " for project " (:project-id request))
+                  (str "undeclared operation " (pr-str op)
+                       " for project " (:project-id request)))}))
 
 (defn mock-advisor []
   (reify Advisor

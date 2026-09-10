@@ -69,14 +69,29 @@ human-in-the-loop interrupt/resume via checkpointing.
   wraps a `langchain.model/ChatModel` — either way the advisor only ever
   produces a `:propose`-effect proposal, never a committed record, and LLM parse
   failures always yield `confidence 0.0` (forces escalation, never fabricated confidence).
+- `src/eleng/operation.cljc` — the **declared operation vocabulary**: the
+  closed set of operations this occupation may perform, and the hazard each
+  one carries. The advisor reads `:op` straight out of the request, so without
+  this the set is open — an operation nobody declared is a HARD governor
+  violation, refused rather than escalated.
 - `src/eleng/governor.cljc` — `ElenGGovernor/check`: a pure function,
   wired as its own `:govern` node. Hard invariants (unregistered project,
-  a proposal whose `:effect` isn't `:propose`) always route to `:hold`.
-  Escalation invariants (`:flag-electrical-hazard` or low advisor confidence)
-  always route to `:request-approval` — an `interrupt-before` node that the
-  graph checkpoints and only resumes on explicit human approval (`actor/approve!`),
-  matching the README's robotics-premise statement that electrical hazards
-  always require human sign-off.
+  a proposal whose `:effect` isn't `:propose`, an **undeclared operation**)
+  always route to `:hold`. Escalation invariants (an operation whose spec
+  requires sign-off — electrical hazard escalation and site access approval —
+  **`:stake :high`**, or low advisor confidence) always route to
+  `:request-approval`: an `interrupt-before` node that the graph checkpoints
+  and only resumes on explicit human approval (`actor/approve!`), matching the
+  robotics-premise statement above that `:high`/`:safety-critical` actions
+  require human sign-off. The verdict carries `:escalation-reasons` so the
+  ledger records *why* sign-off was demanded.
+- `src/eleng/ledger.cljc` — what an audit fact has to **say** (`eleng.store`
+  owns where facts are kept). Four dispositions — `:escalated`, `:signed-off`,
+  `:commit`, `:hold` — and `audit`, which reads a trail back and returns the
+  *count* of integrity violations. The escalation is written by `:decide`,
+  **before** the graph interrupts, so a hazard that is escalated and then
+  never approved still leaves evidence; and a commit carries the `:approval`
+  fact, so a human-signed-off commit is distinguishable from an unattended one.
 - `src/eleng/actor.cljc` — `build-graph`, `run-request!`, `approve!`:
   the `langgraph.graph/state-graph` wiring itself.
 
