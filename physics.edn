@@ -1,0 +1,43 @@
+;; What this vertical's robot physically does, declared for
+;; kotoba.robotics.process (kotoba-lang/robotics). `kbb -M:physics` runs it.
+;;
+;; README "Robotics premise": an electrical test/inspection robot performs
+;; electrical test data recording, inspection logging and site documentation
+;; for electrical engineering technicians (ISCO 3113). Its physical work is
+;; driving a test kit down a narrow switchgear aisle, placing a test probe,
+;; and an infrared survey of PVC-sheathed cables whose sheath temperature
+;; follows the conductor temperature.
+;;
+;; Every number without a cited source is marked `estimate` in its :basis.
+;; Replacing an estimate with a sourced value is this bot's growth work.
+{:physics/schema "itonami.physical-ai.spec.v1"
+ :repo "cloud-itonami/cloud-itonami-isco-3113"
+ :cases
+ [{:id :switchgear-aisle-stop
+   :kind :transport
+   :procedure "inspection robot carries a 15 kg test kit down a narrow switchgear aisle and stops at the next panel"
+   :params {:mass-kg 55.0 :payload-kg 15.0 :distance-m 15.0 :v-max-mps 0.8 :a-max-mps2 0.4
+            :drive-force-n 200.0 :crr 0.015 :cog-height-m 0.90 :support-half-length-m 0.25}
+   :sweep {:param :brake-decel-mps2 :values [0.5 1.0 1.5 2.0 3.0]}
+   :quantity :min-tipover-margin
+   :limit {:min 0.3 :basis "estimate: keep 30 % of the static tip-over reserve on an emergency stop, since a narrow aisle leaves no room to recover from a lean against live panels"}
+   :boundary {:lo 0.1 :hi 5.0}}
+  {:id :place-test-probe
+   :kind :manipulator
+   :procedure "arm lifts a test probe with its lead from the kit and presses it onto a terminal inside the opened panel"
+   :params {:l1-m 0.40 :l2-m 0.35 :m1-kg 3.0 :m2-kg 2.0
+            :from [0.30 0.05] :to [0.55 0.45] :duration-s 2.0 :steps 400}
+   :sweep {:param :payload-kg :values [0.2 0.5 1.0 1.5 2.5]}
+   :quantity :peak-tau1-nm
+   :limit {:max 25.0 :basis "estimate: continuous shoulder torque of a small inspection arm (~2-3 kg payload class)"}
+   :boundary {:lo 0.05 :hi 15.0}}
+  {:id :cable-sheath-ir-survey
+   :kind :thermal
+   :procedure "infrared survey of a PVC-sheathed cable in a tray: the conductor sits at its load temperature and the robot reads the sheath surface"
+   :params {:thickness-m 0.004 :conductivity-w-mk 0.2 :density-kg-m3 1400.0 :specific-heat-j-kgk 1500.0
+            :t0-c 30.0 :front-fixed? true :t-back-ambient-c 30.0 :h-back-w-m2k 8.0
+            :threshold-c 60.0 :duration-s 3600.0 :nodes 11}
+   :sweep {:param :t-hot-c :values [40.0 50.0 60.0 70.0 80.0]}
+   :quantity :final-back-c
+   :limit {:max 60.0 :basis "estimate: sheath surface reading taken as the flag line for a PVC conductor nearing its ~70 C continuous rating in still 30 C air"}
+   :boundary {:lo 35.0 :hi 120.0}}]}
